@@ -7,7 +7,8 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, SystemTime};
 
 static KEY_MAP: [(Keycode, usize); 16] = [
     (Keycode::Num1, 1),
@@ -30,11 +31,12 @@ static KEY_MAP: [(Keycode, usize); 16] = [
 
 fn main() {
     let mut emulator = emulator::Emulator::new();
-    // emulator.init("./roms/IBM Logo.ch8");
+    emulator.init("./roms/IBM Logo.ch8");
     // emulator.init("./roms/test_opcode.ch8");
     // emulator.init("./roms/random_number_test.ch8");
     // emulator.init("./roms/morse_demo.ch8");
-    emulator.init("./roms/br8kout.ch8");
+    // emulator.init("./roms/br8kout.ch8");
+    // emulator.init("./roms/octogon.ch8");
 
     let key_map = HashMap::from(KEY_MAP);
 
@@ -54,8 +56,19 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut iterations = 0;
+    let mut iterations: usize = 0;
+    let mut now = SystemTime::now();
+    let sleep_duration = Duration::from_nanos(10_000_000 / 8);
+
     'running: loop {
+        let elapsed_ms = now.elapsed().unwrap().as_millis();
+
+        if elapsed_ms >= 1000 {
+            println!("Emulating at {iterations} hz");
+            iterations = 0;
+            now = SystemTime::now();
+        }
+
         if emulator.gfx_updated {
             canvas.set_draw_color(Color::RGB(0, 0, 0));
             canvas.clear();
@@ -81,43 +94,41 @@ fn main() {
             canvas.present();
         }
 
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                Event::KeyDown {
-                    keycode: Some(keycode),
-                    ..
-                } => {
-                    if let Some(key) = key_map.get(&keycode) {
-                        emulator.keypress[*key] = true;
+        // Run timers and stuff 60 times per second.
+        if elapsed_ms % 17 == 0 {
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => break 'running,
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        if let Some(key) = key_map.get(&keycode) {
+                            emulator.keypress[*key] = true;
+                        }
                     }
-                }
-                Event::KeyUp {
-                    keycode: Some(keycode),
-                    ..
-                } => {
-                    if let Some(key) = key_map.get(&keycode) {
-                        emulator.keypress[*key] = false;
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        if let Some(key) = key_map.get(&keycode) {
+                            emulator.keypress[*key] = false;
+                        }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
+
+            emulator.tick_timers();
         }
 
         emulator.decode_next();
-
         iterations += 1;
 
-        // Hackish way to make the timers run 60 times per second, and the emulation at 10x that speed.
-        if iterations >= 10 {
-            emulator.tick_timers();
-            iterations = 0;
-        }
-
-        ::std::thread::sleep(Duration::new(0, 100_000_000u32 / 60));
+        thread::sleep(sleep_duration)
     }
 }
