@@ -31,12 +31,12 @@ static KEY_MAP: [(Keycode, usize); 16] = [
 
 fn main() {
     let mut emulator = emulator::Emulator::new();
-    emulator.init("./roms/IBM Logo.ch8");
+    // emulator.init("./roms/IBM Logo.ch8");
     // emulator.init("./roms/test_opcode.ch8");
     // emulator.init("./roms/random_number_test.ch8");
     // emulator.init("./roms/morse_demo.ch8");
     // emulator.init("./roms/br8kout.ch8");
-    // emulator.init("./roms/octogon.ch8");
+    emulator.init("./roms/chipwar.ch8");
 
     let key_map = HashMap::from(KEY_MAP);
 
@@ -105,18 +105,11 @@ fn main() {
                     } => break 'running,
                     Event::KeyDown {
                         keycode: Some(keycode),
+                        repeat: false,
                         ..
                     } => {
                         if let Some(key) = key_map.get(&keycode) {
                             emulator.keypress[*key] = true;
-                        }
-                    }
-                    Event::KeyUp {
-                        keycode: Some(keycode),
-                        ..
-                    } => {
-                        if let Some(key) = key_map.get(&keycode) {
-                            emulator.keypress[*key] = false;
                         }
                     }
                     _ => {}
@@ -127,6 +120,9 @@ fn main() {
         }
 
         emulator.decode_next();
+        for i in 0..16 {
+            emulator.keypress[i] = false;
+        }
         iterations += 1;
 
         thread::sleep(sleep_duration)
