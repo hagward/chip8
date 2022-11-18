@@ -10,6 +10,7 @@ static FONT_DATA: [u8; 80] = [
 
 pub struct Emulator {
     pub gfx: [[bool; 64]; 32],
+    pub gfx_updated: bool,
     pub keypress: [bool; 16],
     mem: [u8; 4096],
     stack: [u16; 16],
@@ -25,6 +26,7 @@ impl Emulator {
     pub fn new() -> Self {
         Self {
             gfx: [[false; 64]; 32],
+            gfx_updated: false,
             keypress: [false; 16],
             mem: [0; 4096],
             stack: [0; 16],
@@ -39,6 +41,7 @@ impl Emulator {
 
     pub fn init(&mut self, path: &str) {
         self.pc = 0x200;
+        self.gfx_updated = true;
 
         let bytes = fs::read(path).expect("failed to read file");
         for i in 0..bytes.len() {
@@ -58,6 +61,7 @@ impl Emulator {
     pub fn decode_next(&mut self) {
         let opcode = (self.mem[self.pc] as u16) << 8 | self.mem[self.pc + 1] as u16;
         self.pc += 2;
+        self.gfx_updated = false;
         // println!("opcode: {:#x}", opcode);
 
         let register_index_x = ((opcode & 0xf00) >> 8) as usize;
@@ -73,6 +77,7 @@ impl Emulator {
                             *col = false;
                         }
                     }
+                    self.gfx_updated = true;
                 }
                 0xee => {
                     self.sp -= 1;
@@ -194,6 +199,8 @@ impl Emulator {
                         }
                     }
                 }
+
+                self.gfx_updated = true;
             }
             0xe000 => match opcode & 0xff {
                 0x9e => {
@@ -271,7 +278,6 @@ impl Emulator {
             self.delay_timer -= 1;
         }
         if self.sound_timer > 0 {
-            println!("SOUND TIMER BEEP!!!");
             self.sound_timer -= 1;
         }
     }

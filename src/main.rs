@@ -56,25 +56,29 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut iterations = 0;
     'running: loop {
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
-        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        if emulator.gfx_updated {
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            canvas.clear();
+            canvas.set_draw_color(Color::RGB(255, 255, 255));
 
-        for i in 0..emulator.gfx.len() {
-            let row = &emulator.gfx[i];
-            for j in 0..row.len() {
-                if !row[j] {
-                    continue;
+            for i in 0..emulator.gfx.len() {
+                let row = &emulator.gfx[i];
+                for j in 0..row.len() {
+                    if !row[j] {
+                        continue;
+                    }
+                    canvas
+                        .fill_rect(Rect::new(
+                            (j * pixel_size) as i32,
+                            (i * pixel_size) as i32,
+                            pixel_size as u32,
+                            pixel_size as u32,
+                        ))
+                        .unwrap();
                 }
-                canvas
-                    .fill_rect(Rect::new(
-                        (j * pixel_size) as i32,
-                        (i * pixel_size) as i32,
-                        pixel_size as u32,
-                        pixel_size as u32,
-                    ))
-                    .unwrap();
             }
+
+            canvas.present();
         }
 
         for event in event_pump.poll_iter() {
@@ -114,7 +118,6 @@ fn main() {
             iterations = 0;
         }
 
-        canvas.present();
         ::std::thread::sleep(Duration::new(0, 100_000_000u32 / 60));
     }
 }
