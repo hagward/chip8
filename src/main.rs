@@ -35,8 +35,8 @@ fn main() {
     // emulator.init("./roms/test_opcode.ch8");
     // emulator.init("./roms/random_number_test.ch8");
     // emulator.init("./roms/morse_demo.ch8");
-    // emulator.init("./roms/br8kout.ch8");
-    emulator.init("./roms/chipwar.ch8");
+    emulator.init("./roms/br8kout.ch8");
+    // emulator.init("./roms/chipwar.ch8");
 
     let key_map = HashMap::from(KEY_MAP);
 
@@ -69,6 +69,40 @@ fn main() {
             now = SystemTime::now();
         }
 
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    if let Some(key) = key_map.get(&keycode) {
+                        emulator.keypress[*key] = true;
+                    }
+                }
+                Event::KeyUp {
+                    keycode: Some(keycode),
+                    ..
+                } => {
+                    if let Some(key) = key_map.get(&keycode) {
+                        emulator.keypress[*key] = false;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Run timers 60 times per second.
+        if elapsed_ms % 17 == 0 {
+            emulator.tick_timers();
+        }
+
+        emulator.decode_next();
+
         if emulator.gfx_updated {
             canvas.set_draw_color(Color::RGB(0, 0, 0));
             canvas.clear();
@@ -94,35 +128,6 @@ fn main() {
             canvas.present();
         }
 
-        // Run timers and stuff 60 times per second.
-        if elapsed_ms % 17 == 0 {
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit { .. }
-                    | Event::KeyDown {
-                        keycode: Some(Keycode::Escape),
-                        ..
-                    } => break 'running,
-                    Event::KeyDown {
-                        keycode: Some(keycode),
-                        repeat: false,
-                        ..
-                    } => {
-                        if let Some(key) = key_map.get(&keycode) {
-                            emulator.keypress[*key] = true;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            emulator.tick_timers();
-        }
-
-        emulator.decode_next();
-        for i in 0..16 {
-            emulator.keypress[i] = false;
-        }
         iterations += 1;
 
         thread::sleep(sleep_duration)
