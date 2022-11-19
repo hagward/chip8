@@ -32,10 +32,10 @@ static KEY_MAP: [(Keycode, usize); 16] = [
 fn main() {
     let mut emulator = emulator::Emulator::new();
     // emulator.init("./roms/IBM Logo.ch8");
-    // emulator.init("./roms/test_opcode.ch8");
+    emulator.init("./roms/test_opcode.ch8");
     // emulator.init("./roms/random_number_test.ch8");
     // emulator.init("./roms/morse_demo.ch8");
-    emulator.init("./roms/br8kout.ch8");
+    // emulator.init("./roms/br8kout.ch8");
     // emulator.init("./roms/chipwar.ch8");
 
     let key_map = HashMap::from(KEY_MAP);
@@ -54,82 +54,75 @@ fn main() {
         .unwrap();
 
     let mut canvas = window.into_canvas().build().unwrap();
-
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut iterations: usize = 0;
-    let mut now = SystemTime::now();
-    let sleep_duration = Duration::from_nanos(10_000_000 / 8);
+
+    let frame_time = Duration::from_nanos(1_000_000_000 / 60);
+    let cycles_per_frame = 27;
 
     'running: loop {
-        let elapsed_ms = now.elapsed().unwrap().as_millis();
+        let now = SystemTime::now();
 
-        if elapsed_ms >= 1000 {
-            println!("Emulating at {iterations} hz");
-            iterations = 0;
-            now = SystemTime::now();
-        }
+        for _ in 0..cycles_per_frame {
+            if emulator.gfx_updated {
+                canvas.set_draw_color(Color::RGB(0, 0, 0));
+                canvas.clear();
+                canvas.set_draw_color(Color::RGB(255, 255, 255));
 
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                Event::KeyDown {
-                    keycode: Some(keycode),
-                    ..
-                } => {
-                    if let Some(key) = key_map.get(&keycode) {
-                        emulator.keypress[*key] = true;
+                for i in 0..emulator.gfx.len() {
+                    let row = &emulator.gfx[i];
+                    for j in 0..row.len() {
+                        if !row[j] {
+                            continue;
+                        }
+                        canvas
+                            .fill_rect(Rect::new(
+                                (j * pixel_size) as i32,
+                                (i * pixel_size) as i32,
+                                pixel_size as u32,
+                                pixel_size as u32,
+                            ))
+                            .unwrap();
                     }
                 }
-                Event::KeyUp {
-                    keycode: Some(keycode),
-                    ..
-                } => {
-                    if let Some(key) = key_map.get(&keycode) {
-                        emulator.keypress[*key] = false;
-                    }
-                }
-                _ => {}
+
+                canvas.present();
             }
-        }
 
-        // Run timers 60 times per second.
-        if elapsed_ms % 17 == 0 {
-            emulator.tick_timers();
-        }
-
-        emulator.decode_next();
-
-        if emulator.gfx_updated {
-            canvas.set_draw_color(Color::RGB(0, 0, 0));
-            canvas.clear();
-            canvas.set_draw_color(Color::RGB(255, 255, 255));
-
-            for i in 0..emulator.gfx.len() {
-                let row = &emulator.gfx[i];
-                for j in 0..row.len() {
-                    if !row[j] {
-                        continue;
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => break 'running,
+                    Event::KeyDown {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        if let Some(key) = key_map.get(&keycode) {
+                            emulator.keypress[*key] = true;
+                        }
                     }
-                    canvas
-                        .fill_rect(Rect::new(
-                            (j * pixel_size) as i32,
-                            (i * pixel_size) as i32,
-                            pixel_size as u32,
-                            pixel_size as u32,
-                        ))
-                        .unwrap();
+                    Event::KeyUp {
+                        keycode: Some(keycode),
+                        ..
+                    } => {
+                        if let Some(key) = key_map.get(&keycode) {
+                            emulator.keypress[*key] = false;
+                        }
+                    }
+                    _ => {}
                 }
             }
 
-            canvas.present();
+            emulator.decode_next();
         }
 
-        iterations += 1;
+        emulator.tick_timers();
 
-        thread::sleep(sleep_duration)
+        let diff = frame_time.saturating_sub(now.elapsed().unwrap());
+        if !diff.is_zero() {
+            thread::sleep(diff);
+        }
     }
 }
