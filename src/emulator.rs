@@ -63,10 +63,10 @@ impl Emulator {
         self.pc += 2;
         self.gfx_updated = false;
 
-        let register_index_x = ((opcode & 0xf00) >> 8) as usize;
-        let register_index_y = ((opcode & 0xf0) >> 4) as usize;
-        let address = (opcode & 0xfff) as usize;
-        let value = (opcode & 0xff) as u8;
+        let x = ((opcode & 0xf00) >> 8) as usize;
+        let y = ((opcode & 0xf0) >> 4) as usize;
+        let nnn = (opcode & 0xfff) as usize;
+        let nn = (opcode & 0xff) as u8;
 
         match opcode & 0xf000 {
             0x0 => match opcode {
@@ -90,25 +90,25 @@ impl Emulator {
             },
 
             // 1nnn: Jump to address nnn
-            0x1000 => self.pc = address,
+            0x1000 => self.pc = nnn,
 
             // 2nnn: Execute subroutine starting at address nnn
             0x2000 => {
                 self.stack[self.sp] = self.pc as u16;
                 self.sp += 1;
-                self.pc = address;
+                self.pc = nnn;
             }
 
             // 3xnn: Skip the following instruction if the value of register vx equals nn
             0x3000 => {
-                if self.v[register_index_x] == value {
+                if self.v[x] == nn {
                     self.pc += 2;
                 }
             }
 
             // 4xnn: Skip the following instruction if the value of register vx is not equal to nn
             0x4000 => {
-                if self.v[register_index_x] != value {
+                if self.v[x] != nn {
                     self.pc += 2;
                 }
             }
@@ -116,7 +116,7 @@ impl Emulator {
             0x5000 => match opcode & 0xf {
                 // 5xy0: Skip the following instruction if the value of register vx is equal to the value of register vy
                 0x0 => {
-                    if self.v[register_index_x] == self.v[register_index_y] {
+                    if self.v[x] == self.v[y] {
                         self.pc += 2;
                     }
                 }
@@ -125,61 +125,58 @@ impl Emulator {
             },
 
             // 6xnn: Store number nn in register vx
-            0x6000 => self.v[register_index_x] = value,
+            0x6000 => self.v[x] = nn,
 
             // 7xnn: Add the value nn to register vx
             0x7000 => {
-                let (result, _) = self.v[register_index_x].overflowing_add(value);
-                self.v[register_index_x] = result;
+                let (result, _) = self.v[x].overflowing_add(nn);
+                self.v[x] = result;
             }
 
             0x8000 => match opcode & 0xf {
                 // 8xy0: Store the value of register vy in register vx
-                0x0 => self.v[register_index_x] = self.v[register_index_y],
+                0x0 => self.v[x] = self.v[y],
 
                 // 8xy1: Set vx to vx OR vy
-                0x1 => self.v[register_index_x] |= self.v[register_index_y],
+                0x1 => self.v[x] |= self.v[y],
 
                 // 8xy2: Set vx to vx AND vy
-                0x2 => self.v[register_index_x] &= self.v[register_index_y],
+                0x2 => self.v[x] &= self.v[y],
 
                 // 8xy3: Set vx to vx XOR vy
-                0x3 => self.v[register_index_x] ^= self.v[register_index_y],
+                0x3 => self.v[x] ^= self.v[y],
 
                 // 8xy4: Add the value of register vy to register vx
                 0x4 => {
-                    let (result, carry) =
-                        self.v[register_index_x].overflowing_add(self.v[register_index_y]);
-                    self.v[register_index_x] = result;
+                    let (result, carry) = self.v[x].overflowing_add(self.v[y]);
+                    self.v[x] = result;
                     self.v[0xf] = carry as u8;
                 }
 
                 // 8xy5: Subtract the value of register vy from register vx
                 0x5 => {
-                    let (result, borrow) =
-                        self.v[register_index_x].overflowing_sub(self.v[register_index_y]);
-                    self.v[register_index_x] = result;
+                    let (result, borrow) = self.v[x].overflowing_sub(self.v[y]);
+                    self.v[x] = result;
                     self.v[0xf] = (!borrow) as u8;
                 }
 
                 // 8xy6: Store the value of register vy shifted right one bit in register vx
                 0x6 => {
-                    self.v[register_index_x] = self.v[register_index_y] >> 1;
-                    self.v[0xf] = self.v[register_index_y] & 1;
+                    self.v[x] = self.v[y] >> 1;
+                    self.v[0xf] = self.v[y] & 1;
                 }
 
                 // 8xy7: Set register vx to the value of vy minus vx
                 0x7 => {
-                    let (result, borrow) =
-                        self.v[register_index_y].overflowing_sub(self.v[register_index_x]);
-                    self.v[register_index_x] = result;
+                    let (result, borrow) = self.v[y].overflowing_sub(self.v[x]);
+                    self.v[x] = result;
                     self.v[0xf] = (!borrow) as u8;
                 }
 
                 // 8xye: Store the value of register vy shifted left one bit in register vx
                 0xe => {
-                    self.v[register_index_x] = self.v[register_index_y] << 1;
-                    self.v[0xf] = self.v[register_index_y] >> 7;
+                    self.v[x] = self.v[y] << 1;
+                    self.v[0xf] = self.v[y] >> 7;
                 }
 
                 _ => println!("invalid opcode: {:#x}", opcode),
@@ -187,45 +184,45 @@ impl Emulator {
 
             // 9xy0: Skip the following instruction if the value of register vx is not equal to the value of register vy
             0x9000 => {
-                if self.v[register_index_x] != self.v[register_index_y] {
+                if self.v[x] != self.v[y] {
                     self.pc += 2;
                 }
             }
 
             // annn: Store memory address nnn in register i
-            0xa000 => self.i = address,
+            0xa000 => self.i = nnn,
 
             // bnnn: Jump to address nnn + v0
-            0xb000 => self.pc = address + self.v[0] as usize,
+            0xb000 => self.pc = nnn + self.v[0] as usize,
 
             // cxnn: Set vx to a random number with a mask of nn
-            0xc000 => self.v[register_index_x] = rand::random::<u8>() & value,
+            0xc000 => self.v[x] = rand::random::<u8>() & nn,
 
             // dxyn: Draw a sprite at position vx, vy with n bytes of sprite data starting at the address stored in i
             0xd000 => {
                 let sprite_height = (opcode & 0xf) as usize;
-                let coord_x = (self.v[register_index_x] % 64) as usize;
-                let coord_y = (self.v[register_index_y] % 32) as usize;
+                let coord_x = (self.v[x] % 64) as usize;
+                let coord_y = (self.v[y] % 32) as usize;
                 self.v[0xf] = 0;
 
                 for i in 0..sprite_height {
-                    let y = coord_y + i;
-                    if y >= 32 {
+                    let coord_y = coord_y + i;
+                    if coord_y >= 32 {
                         break;
                     }
 
                     let sprite_byte = self.mem[self.i + i];
                     for j in 0..8 {
-                        let x = coord_x + j;
-                        if x >= 64 {
+                        let coord_x = coord_x + j;
+                        if coord_x >= 64 {
                             break;
                         }
 
                         let sprite_bit = sprite_byte & (1 << (7 - j)) != 0;
-                        let pixel_before = self.gfx[y][x];
-                        self.gfx[y][x] ^= sprite_bit;
+                        let pixel_before = self.gfx[coord_y][coord_x];
+                        self.gfx[coord_y][coord_x] ^= sprite_bit;
 
-                        if pixel_before && !self.gfx[y][x] {
+                        if pixel_before && !self.gfx[coord_y][coord_x] {
                             self.v[0xf] = 1;
                         }
                     }
@@ -237,7 +234,7 @@ impl Emulator {
             0xe000 => match opcode & 0xff {
                 // ex9e: Skip the following instruction if the key corresponding to the hex value currently stored in register vx is pressed
                 0x9e => {
-                    let key = self.v[register_index_x] as usize;
+                    let key = self.v[x] as usize;
                     if self.keypress[key] {
                         self.pc += 2;
                     }
@@ -245,7 +242,7 @@ impl Emulator {
 
                 // exa1: Skip the following instruction if the key corresponding to the hex value currently stored in register vx is not pressed
                 0xa1 => {
-                    let key = self.v[register_index_x] as usize;
+                    let key = self.v[x] as usize;
                     if !self.keypress[key] {
                         self.pc += 2;
                     }
@@ -257,14 +254,14 @@ impl Emulator {
             0xf000 => {
                 match opcode & 0xff {
                     // fx07: Store the current value of the delay timer in register vx
-                    0x07 => self.v[register_index_x] = self.delay_timer,
+                    0x07 => self.v[x] = self.delay_timer,
 
                     // fx0a: Wait for a keypress and store the result in register vx
                     0x0a => {
                         let mut is_any_key_pressed = false;
                         for i in 0..self.keypress.len() {
                             if self.keypress[i] {
-                                self.v[register_index_x] = i as u8;
+                                self.v[x] = i as u8;
                                 is_any_key_pressed = true;
                                 break;
                             }
@@ -275,23 +272,23 @@ impl Emulator {
                     }
 
                     // fx15: Set the delay timer to the value of register vx
-                    0x15 => self.delay_timer = self.v[register_index_x],
+                    0x15 => self.delay_timer = self.v[x],
 
                     // fx18: Set the sound timer to the value of register vx
-                    0x18 => self.sound_timer = self.v[register_index_x],
+                    0x18 => self.sound_timer = self.v[x],
 
                     // fx1e: Add the value stored in register vx to register i
-                    0x1e => self.i += self.v[register_index_x] as usize,
+                    0x1e => self.i += self.v[x] as usize,
 
                     // fx29: Set i to the memory address of the sprite data corresponding to the hexadecimal digit stored in register vx
                     0x29 => {
                         // Each font sprite is 5 bytes.
-                        self.i = (self.v[register_index_x] * 5) as usize;
+                        self.i = (self.v[x] * 5) as usize;
                     }
 
                     // fx33: Store the binary-coded decimal equivalent of the value stored in register vx at addresses i, i + 1, and i + 2
                     0x33 => {
-                        let value = self.v[register_index_x];
+                        let value = self.v[x];
                         self.mem[self.i] = value / 100 % 10;
                         self.mem[self.i + 1] = value / 10 % 10;
                         self.mem[self.i + 2] = value % 10;
@@ -299,18 +296,18 @@ impl Emulator {
 
                     // fx55: Store the values of registers v0 to vx inclusive in memory starting at address i
                     0x55 => {
-                        for i in 0..=register_index_x {
+                        for i in 0..=x {
                             self.mem[self.i + i] = self.v[i];
                         }
-                        self.i += register_index_x + 1;
+                        self.i += x + 1;
                     }
 
                     // fx65: Fill registers v0 to vx inclusive with the values stored in memory starting at address i
                     0x65 => {
-                        for i in 0..=register_index_x {
+                        for i in 0..=x {
                             self.v[i] = self.mem[self.i + i];
                         }
-                        self.i += register_index_x + 1;
+                        self.i += x + 1;
                     }
 
                     _ => println!("invalid opcode: {:#x}", opcode),
