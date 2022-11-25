@@ -3,6 +3,7 @@ extern crate sdl2;
 mod emulator;
 
 use clap::Parser;
+use emulator::Emulator;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -43,23 +44,21 @@ static KEY_MAP: [(Keycode, usize); 16] = [
     (Keycode::V, 0xf),
 ];
 
+const PIXEL_SIZE: u32 = 20;
+const WIDTH: u32 = PIXEL_SIZE * 64;
+const HEIGHT: u32 = PIXEL_SIZE * 32;
+
 fn main() {
     let args = Args::parse();
-
-    let mut emulator = emulator::Emulator::new();
-    emulator.init(&args.file_name);
-
     let key_map = HashMap::from(KEY_MAP);
+
+    let mut emulator = Emulator::init(&args.file_name);
 
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let pixel_size: usize = 20;
-    let width: usize = pixel_size * 64;
-    let height: usize = pixel_size * 32;
-
     let window = video_subsystem
-        .window("CHIP-8", width as u32, height as u32)
+        .window("CHIP-8", WIDTH, HEIGHT)
         .position_centered()
         .build()
         .unwrap();
@@ -86,10 +85,10 @@ fn main() {
                         }
                         canvas
                             .fill_rect(Rect::new(
-                                (j * pixel_size) as i32,
-                                (i * pixel_size) as i32,
-                                pixel_size as u32,
-                                pixel_size as u32,
+                                (j * (PIXEL_SIZE as usize)) as i32,
+                                (i * (PIXEL_SIZE as usize)) as i32,
+                                PIXEL_SIZE,
+                                PIXEL_SIZE,
                             ))
                             .unwrap();
                     }
@@ -125,7 +124,7 @@ fn main() {
                 }
             }
 
-            emulator.decode_next();
+            emulator.tick();
         }
 
         emulator.tick_timers();

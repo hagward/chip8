@@ -23,42 +23,39 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new() -> Self {
-        Self {
+    pub fn init(rom_path: &str) -> Self {
+        let mut emulator = Self {
             gfx: [[false; 64]; 32],
-            gfx_updated: false,
+            gfx_updated: true,
             keypress: [false; 16],
             mem: [0; 4096],
             stack: [0; 16],
             v: [0; 16],
             i: 0,
-            pc: 0,
+            pc: 0x200,
             sp: 0,
             delay_timer: 0,
             sound_timer: 0,
-        }
-    }
+        };
 
-    pub fn init(&mut self, path: &str) {
-        self.pc = 0x200;
-        self.gfx_updated = true;
-
-        let bytes = fs::read(path).expect("failed to read file");
-        for i in 0..bytes.len() {
-            let j = i + 0x200;
-            if j >= self.mem.len() {
-                println!("file didn't fit in memory");
-                break;
-            }
-            self.mem[j] = bytes[i];
-        }
-
+        // Load font data.
         for i in 0..FONT_DATA.len() {
-            self.mem[i] = FONT_DATA[i];
+            emulator.mem[i] = FONT_DATA[i];
         }
+
+        // Load rom into memory, starting at address 0x200.
+        let rom_bytes = fs::read(rom_path).expect("failed to read file");
+        if rom_bytes.len() > emulator.mem.len() - 0x200 {
+            panic!("not enough emulator memory to load rom");
+        }
+        for i in 0..rom_bytes.len() {
+            emulator.mem[0x200 + i] = rom_bytes[i];
+        }
+
+        emulator
     }
 
-    pub fn decode_next(&mut self) {
+    pub fn tick(&mut self) {
         let opcode = (self.mem[self.pc] as u16) << 8 | self.mem[self.pc + 1] as u16;
         self.pc += 2;
         self.gfx_updated = false;
@@ -326,17 +323,4 @@ impl Emulator {
             self.sound_timer -= 1;
         }
     }
-}
-
-#[test]
-fn test1() {
-    let mut emu = Emulator::new();
-    emu.mem[0] = 0x81;
-    emu.mem[1] = 0x26;
-    emu.v[2] = 0b1111;
-
-    emu.decode_next();
-
-    assert_eq!(emu.v[2], 0b1111);
-    assert_eq!(emu.v[1], 0b111);
 }
